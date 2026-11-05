@@ -138,6 +138,8 @@
   }
   button.submit:hover{background:var(--primary-dark);}
   button.submit:disabled{background:#a0aec0; cursor:not-allowed;}
+  button.submit.success{background:var(--ok); opacity:.88; filter:grayscale(.15); cursor:default;}
+  button.submit.changed{background:#dd6b20; opacity:.88; filter:grayscale(.15); cursor:default;}
   @keyframes msgPulseRed{
     0%, 100%{box-shadow:0 0 0 0 rgba(197,48,48,0);}
     50%{box-shadow:0 0 0 4px rgba(197,48,48,.22);}
@@ -432,7 +434,7 @@ const actionSelect = document.getElementById("actionSelect");
 const stepOldSlot  = document.getElementById("stepOldSlot");
 const oldSlotSelect = document.getElementById("oldSlot");
 actionSelect.addEventListener("change", () => {
-  submitBtn.textContent = actionSelect.value === "aendern" ? "Termin ändern" : "Termin buchen";
+  lastConfirm = null;
   renderCascade(); // zeigt/versteckt "Ihr bisheriger Termin" und blendet Felder um
 });
 
@@ -498,6 +500,7 @@ function renderCascade(){
 
 // Tippen: nur Ziffern-Filter im Handyfeld + Sperren, wenn ein Feld geleert wird
 cascadeInputs.forEach(({input}) => input.addEventListener("input", () => {
+  lastConfirm = null; // neue Eingabe hebt die Button-Bestätigung auf
   if (input.id === "phone") input.value = input.value.replace(/[^0-9]/g, ""); // nur Ziffern erlaubt
   if (input.id === "schueler") input.value = input.value.replace(/\s/g, ""); // nur Vorname, kein Leerzeichen
   if (input.id === "schueler" && actionSelect.value === "aendern") verifyAendern();
@@ -507,11 +510,23 @@ cascadeInputs.forEach(({input}) => input.addEventListener("input", () => {
 }));
 
 // Weiter-Schaltflächen (erscheinen nur auf Touch-Geräten, wo es keine Enter-Taste gibt)
+let lastConfirm = null; // "success" = gebucht, "changed" = geändert
+function applyButton(){
+  submitBtn.classList.remove("success", "changed");
+  if (lastConfirm) {
+    submitBtn.classList.add(lastConfirm);
+    submitBtn.textContent = lastConfirm === "changed" ? "Termin geändert" : "Termin gebucht";
+  } else {
+    submitBtn.textContent = actionSelect.value === "aendern" ? "Termin ändern" : "Termin buchen";
+  }
+}
+
 const phoneWeiter = document.querySelector(".weiter-btn"); // nur bei der Handynummer (Ziffernblock ohne Enter)
 function updateWeiter(){
   if (!phoneWeiter) return;
   const phone = cascadeInputs[2].input;
   phoneWeiter.disabled = phone.disabled || !PHONE_RE.test(phone.value.trim());
+  applyButton();
 }
 
 // Ein Feld weiter (Enter-Taste oder Weiter-Button)
@@ -771,6 +786,7 @@ function bookLocal(data){
 
 form.addEventListener("submit", async e => {
   e.preventDefault();
+  lastConfirm = null;
   const schueler = document.getElementById("schueler").value.trim();
   const name  = document.getElementById("name").value.trim();
   const email = document.getElementById("email").value.trim();
@@ -824,8 +840,8 @@ form.addEventListener("submit", async e => {
       : `✅ Ihr Termin ist vorgemerkt: ${data.slot} (${mode}).`, true);
 
     // Formular zurücksetzen & Kaskade wieder sperren
+    lastConfirm = action === "aendern" ? "changed" : "success";
     form.reset();
-    submitBtn.textContent = "Termin buchen";
     chosenSlot = null;
     unlocked = 0;
     document.querySelectorAll(".slot.selected").forEach(s => s.classList.remove("selected"));
@@ -834,8 +850,7 @@ form.addEventListener("submit", async e => {
   } catch (err) {
     showMsg("❌ " + err.message + " Bitte wählen Sie ein anderes Zeitfenster.", false);
   } finally {
-    submitBtn.textContent = "Termin buchen";
-    renderCascade(); // setzt den Button-Zustand passend zur Kaskade
+    renderCascade(); // ruft updateWeiter -> applyButton auf
   }
 });
 </script>
