@@ -47,6 +47,12 @@
     backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
   }
   #pdfPw:focus{outline:none; border-color:var(--primary);}
+  .weiter-btn{
+    display:none; margin-top:8px; padding:10px 20px; font-weight:700; font-size:.9rem;
+    color:#fff; background:var(--primary); border:none; border-radius:12px; cursor:pointer;
+  }
+  .weiter-btn:disabled{background:#a0aec0; cursor:not-allowed;}
+  @media (pointer:coarse){ .weiter-btn{display:inline-block;} } /* Smartphone/Tablet */
   .copy{font-style:italic; text-align:center; font-size:.78rem; color:#718096; margin-bottom:10px; letter-spacing:.5px;}
   .logo-wrap{display:flex; justify-content:flex-start; margin-bottom:10px;}
   .logo{filter:drop-shadow(0 6px 14px rgba(43,108,176,.35)); border-radius:24px;}
@@ -212,6 +218,7 @@
       <div id="stepSchueler" class="step-hidden">
         <label for="schueler">Schülervorname (Vorname Ihres Kindes) <span class="req">*</span></label>
         <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><input type="text" id="schueler" required autocomplete="off" placeholder="nur der Vorname Ihres Kindes"></div>
+        <button type="button" class="weiter-btn" data-i="0">Weiter</button>
       </div>
 
       <div id="stepOldSlot" style="display:none;">
@@ -223,16 +230,19 @@
       <div id="stepEltern" class="step-hidden">
         <label for="name">Nachname (Eltern/Erziehungsberechtigte) <span class="req">*</span></label>
         <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><input type="text" id="name" disabled required autocomplete="name"></div>
+        <button type="button" class="weiter-btn" data-i="1">Weiter</button>
       </div>
 
       <div id="stepPhone" class="step-hidden">
         <label for="phone">Handynummer <span class="req">*</span></label>
         <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2f855a"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg><input type="tel" id="phone" disabled required autocomplete="tel" placeholder="z. B. 01721234567" maxlength="15" inputmode="numeric"></div>
+        <button type="button" class="weiter-btn" data-i="2">Weiter</button>
       </div>
 
       <div id="stepEmail" class="step-hidden">
         <label for="email">E-Mail <span class="opt">(freiwillig)</span></label>
         <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg><input type="email" id="email" disabled autocomplete="email"></div>
+        <button type="button" class="weiter-btn" data-i="3">Weiter</button>
       </div>
 
       <div id="stepMode" class="step-hidden">
@@ -485,6 +495,7 @@ function renderCascade(){
     }
   }
   refreshFieldStates();
+  updateWeiter();
 }
 
 // Tippen: nur Ziffern-Filter im Handyfeld + Sperren, wenn ein Feld geleert wird
@@ -497,34 +508,53 @@ cascadeInputs.forEach(({input}) => input.addEventListener("input", () => {
   renderCascade();
 }));
 
-// Enter im Feld: erst dann wird das nächste Feld freigegeben
+// Weiter-Schaltflächen (erscheinen nur auf Touch-Geräten, wo es keine Enter-Taste gibt)
+const weiterBtns = [...document.querySelectorAll(".weiter-btn")];
+function updateWeiter(){
+  cascadeInputs.forEach(({input}, i) => {
+    const b = weiterBtns[i];
+    if (!b) return;
+    if (input.disabled) { b.disabled = true; return; }
+    const v = input.value.trim();
+    if (input.id === "phone") b.disabled = !PHONE_RE.test(v);
+    else if (input.id === "email") b.disabled = false; // freiwillig
+    else b.disabled = v.length === 0;
+  });
+}
+
+// Ein Feld weiter (Enter-Taste oder Weiter-Button)
+function advanceFrom(i){
+  const input = cascadeInputs[i].input;
+  const v = input.value.trim();
+  if (i < 3 && v.length > 0) {
+    if (input.id === "phone" && !PHONE_RE.test(v)) {
+      input.classList.add("fehler");
+      showMsg("Bitte Handynummer im Muster 01721234567 eingeben – nur Ziffern, beginnend mit 0.", false);
+      return;
+    }
+    unlocked = Math.max(unlocked, i + 1);
+    renderCascade();
+    if (i === 0 && actionSelect.value === "aendern") { oldSlotSelect.focus(); return; }
+    const nxt = cascadeInputs[i + 1];
+    if (nxt && !nxt.input.disabled) nxt.input.focus();
+  } else if (i === 3) { // E-Mail (freiwillig)
+    if (v.length > 0 && !EMAIL_RE.test(v)) {
+      input.classList.add("fehler");
+      showMsg("Bitte gültige E-Mail eingeben oder Feld leer lassen.", false);
+      return;
+    }
+    const firstFree = document.querySelector(".slot:not(.taken)");
+    if (firstFree) firstFree.scrollIntoView({behavior: "smooth", block: "center"});
+  }
+}
 cascadeInputs.forEach(({input}, i) => {
   input.addEventListener("keydown", e => {
     if (e.key !== "Enter") return;
-    e.preventDefault(); // nie direkt absenden
-    const v = input.value.trim();
-    if (i < 3 && v.length > 0) {
-      if (input.id === "phone" && !PHONE_RE.test(v)) {
-        input.classList.add("fehler");
-        showMsg("Bitte Handynummer im Muster 01721234567 eingeben – nur Ziffern, beginnend mit 0.", false);
-        return;
-      }
-      unlocked = Math.max(unlocked, i + 1);
-      renderCascade();
-      if (i === 0 && actionSelect.value === "aendern") { oldSlotSelect.focus(); return; }
-      const nxt = cascadeInputs[i + 1];
-      if (nxt && !nxt.input.disabled) nxt.input.focus();
-    } else if (i === 3) { // E-Mail (freiwillig)
-      if (v.length > 0 && !EMAIL_RE.test(v)) {
-        input.classList.add("fehler");
-        showMsg("Bitte gültige E-Mail eingeben oder Feld leer lassen.", false);
-        return;
-      }
-      const firstFree = document.querySelector(".slot:not(.taken)");
-      if (firstFree) firstFree.scrollIntoView({behavior: "smooth", block: "center"});
-    }
+    e.preventDefault();
+    advanceFrom(i);
   });
 });
+weiterBtns.forEach(b => b.addEventListener("click", () => advanceFrom(Number(b.dataset.i))));
 
 // Enter außerhalb der Felder: absenden, wenn alles bereit
 document.addEventListener("keydown", e => {
@@ -555,6 +585,9 @@ const pdfPw  = document.getElementById("pdfPw");
 pdfBtn.addEventListener("click", () => {
   if (pdfPw.style.display === "block") { pdfPw.style.display = "none"; pdfPw.value = ""; }
   else { pdfPw.style.display = "block"; pdfPw.focus(); }
+});
+pdfPw.addEventListener("input", () => {
+  if (pdfPw.value.length === 4) pdfPw.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter"}));
 });
 pdfPw.addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
