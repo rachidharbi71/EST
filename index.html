@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elternsprechtag – Terminbuchung</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#ffffff; --primary:#2b6cb0; --primary-dark:#245a94;
+    --taken:#d9dee4; --taken-text:#9aa4ae; --ok:#2f855a; --err:#c53030;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:"Segoe UI", Roboto, Arial, sans-serif;
+    background:linear-gradient(160deg,#dce9f7 0%,#f7fafc 50%,#e6eff8 100%);
+    background-attachment:fixed; color:#1a202c;
+    display:flex; justify-content:center; padding:24px 12px;
+  }
+  .container{max-width:640px; width:100%;}
+  header{text-align:center; margin-bottom:20px;}
+  header h1{font-size:2.25rem; font-weight:800; color:var(--primary-dark); margin-bottom:6px;}
+  header p{color:#4a5568; font-size:.95rem;}
+  .card{
+    background:rgba(255,255,255,.55); border-radius:20px; padding:22px;
+    border:1px solid rgba(255,255,255,.65);
+    box-shadow:0 8px 32px rgba(31,38,135,.12); margin-bottom:18px;
+    backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+  }
+  #adminArea{position:fixed; top:14px; right:14px; z-index:9998; display:flex; flex-direction:column; align-items:flex-end; gap:8px;}
+  #pdfBtn{
+    padding:9px 14px; font-size:.85rem; font-weight:700; color:var(--primary-dark);
+    background:rgba(255,255,255,.75); border:1px solid rgba(255,255,255,.8); border-radius:12px;
+    cursor:pointer; box-shadow:0 4px 16px rgba(31,38,135,.12);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  }
+  #pdfBtn:hover{background:rgba(255,255,255,.95);}
+  @keyframes blinkPurple{
+    0%, 100%{box-shadow:0 0 0 0 rgba(128,90,213,0);}
+    50%{box-shadow:0 0 0 5px rgba(128,90,213,.22);}
+  }
+  #pdfBtn{animation:blinkPurple 2.6s ease-in-out infinite; border:1px solid rgba(128,90,213,.45); color:#5a3e9e;}
+  #pdfPw{
+    display:none; width:110px; text-align:center; letter-spacing:8px; font-size:1rem;
+    padding:9px 8px; border:2px solid rgba(203,213,224,.85); border-radius:12px;
+    background:rgba(255,255,255,.85);
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  }
+  #pdfPw:focus{outline:none; border-color:var(--primary);}
+  .copy{font-style:italic; text-align:center; font-size:.78rem; color:#718096; margin-bottom:10px; letter-spacing:.5px;}
+  .logo-wrap{display:flex; justify-content:flex-start; margin-bottom:10px;}
+  .logo{filter:drop-shadow(0 6px 14px rgba(43,108,176,.35)); border-radius:24px;}
+  .field-wrap{position:relative;}
+  .field-wrap svg.f-icon{position:absolute; left:12px; top:50%; transform:translateY(-50%); pointer-events:none;}
+  .field-wrap input, .field-wrap select{padding-left:40px;}
+  label{display:block; font-weight:600; margin:16px 0 6px; font-size:.95rem;}
+  .req{color:#e53e3e; font-weight:700;}
+  .opt{font-weight:400; font-size:.82rem; color:#718096;}
+  select{
+    width:100%; padding:11px 12px; border:2px solid rgba(203,213,224,.85); border-radius:12px;
+    font-size:1rem; background:rgba(255,255,255,.7); transition:border-color .15s, box-shadow .15s;
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  }
+  select:focus{outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(43,108,176,.15);}
+  input[type=text], input[type=tel], input[type=email]{
+    width:100%; padding:11px 12px; border:2px solid rgba(203,213,224,.85); border-radius:12px;
+    font-size:1rem; background:rgba(255,255,255,.7); transition:border-color .15s, box-shadow .15s;
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  }
+  input:focus{outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(43,108,176,.15);}
+  input:disabled{background:rgba(238,241,245,.6); color:#a0aec0; cursor:not-allowed;}
+
+  /* Kaskade: gesperrte Schritte richtig verschwommen */
+  .step-hidden{filter:blur(4px); pointer-events:none; user-select:none; transition:filter .3s;}
+  .step-gone{display:none !important;}
+  .step-hidden *{pointer-events:none;}
+
+  /* Feldzustände */
+  @keyframes blinkRed{
+    0%, 100%{box-shadow:0 0 0 0 rgba(229,62,62,0);}
+    50%{box-shadow:0 0 0 4px rgba(229,62,62,.35);}
+  }
+  input.fehler{
+    border-color:#e53e3e;
+    animation:blinkRed 1.4s ease-in-out infinite;
+  }
+  input.ok{
+    border-color:var(--ok);
+    box-shadow:0 0 0 3px rgba(47,133,90,.15);
+    animation:none;
+  }
+
+  .radio-row{display:flex; gap:14px; margin-top:6px; flex-wrap:wrap;}
+  .radio-card{
+    flex:1; min-width:150px; border:2px solid rgba(203,213,224,.85); border-radius:14px;
+    padding:12px; text-align:center; cursor:pointer; font-weight:600; transition:.15s;
+    background:rgba(255,255,255,.65);
+  }
+  .radio-card input{display:none;}
+  .phone-icon{transform:scale(1.25); transform-origin:center;}
+  .radio-card.selected{border-color:var(--primary); background:#ebf4ff; color:var(--primary-dark);}
+  .slots{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(105px,1fr));
+    gap:8px; margin-top:8px;
+  }
+  @keyframes blinkGreen{
+    0%, 100%{box-shadow:0 0 0 0 rgba(47,133,90,0);}
+    50%{box-shadow:0 0 0 4px rgba(47,133,90,.28);}
+  }
+  .slot{
+    padding:10px 6px; text-align:center; border:2px solid #2f855a; border-radius:8px;
+    cursor:pointer; font-size:.92rem; font-weight:600; transition:.15s; user-select:none;
+    background:rgba(255,255,255,.75); animation:blinkGreen 2.4s ease-in-out infinite;
+  }
+  .slot:hover{background:#e6f4ea;}
+  .slot.selected{border-color:var(--primary); background:#ebf4ff; color:var(--primary-dark); animation:none;}
+  .slot.taken{
+    background:var(--taken); color:var(--taken-text); border-color:#e53e3e;
+    cursor:not-allowed; text-decoration:line-through; animation:none;
+  }
+  .legend{display:flex; gap:18px; margin-top:12px; font-size:.85rem; color:#4a5568; flex-wrap:wrap;}
+  .legend span::before{
+    content:""; display:inline-block; width:14px; height:14px; border-radius:4px;
+    margin-right:6px; vertical-align:-2px;
+  }
+  .legend .l-free::before{background:#fff; border:2px solid #2f855a;}
+  .legend .l-sel::before{background:#ebf4ff; border:2px solid var(--primary);}
+  .legend .l-taken::before{background:var(--taken); border:2px solid #e53e3e;}
+  button.submit{
+    width:100%; padding:14px; font-size:1.05rem; font-weight:700; color:#fff;
+    background:var(--primary); border:none; border-radius:10px; cursor:pointer; transition:.15s;
+  }
+  button.submit:hover{background:var(--primary-dark);}
+  button.submit:disabled{background:#a0aec0; cursor:not-allowed;}
+  @keyframes msgPulseRed{
+    0%, 100%{box-shadow:0 0 0 0 rgba(197,48,48,0);}
+    50%{box-shadow:0 0 0 4px rgba(197,48,48,.22);}
+  }
+  @keyframes msgPulseGreen{
+    0%, 100%{box-shadow:0 0 0 0 rgba(47,133,90,0);}
+    50%{box-shadow:0 0 0 4px rgba(47,133,90,.22);}
+  }
+  .msg{
+    position:fixed; top:14px; left:50%; transform:translateX(-50%);
+    width:min(92%,560px); z-index:9999; margin-top:0; padding:12px 16px;
+    border-radius:14px; display:none; font-size:.95rem; text-align:center;
+    background:rgba(255,255,255,.9);
+    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  }
+  .msg.ok{display:block; background:#e6f4ea; color:var(--ok); border:1px solid #b7dfc2; animation:msgPulseGreen 1.6s ease-in-out infinite;}
+  .msg.err{display:block; background:#fdecec; color:var(--err); border:1px solid #f3b4b4; animation:msgPulseRed 1.6s ease-in-out infinite;}
+  .note{font-size:.8rem; color:#718096; margin-top:8px;}
+  details{margin-top:24px; font-size:.85rem;}
+  summary{cursor:pointer; font-weight:600; color:#4a5568;}
+  pre{
+    background:#1a202c; color:#e2e8f0; padding:14px; border-radius:8px;
+    overflow-x:auto; font-size:.78rem; margin-top:8px;
+  }
+</style>
+</head>
+<body>
+<div id="adminArea">
+    <button type="button" id="pdfBtn" title="PDF-Ausdruck der gebuchten Termine">&#128424;&#65039; PDF</button>
+    <input type="password" id="pdfPw" maxlength="4" placeholder="****" autocomplete="off" inputmode="numeric">
+  </div>
+
+  <div class="container">
+  <header>
+    <p class="copy">© EST26 HARBI</p>
+    <div class="logo-wrap">
+      <svg class="logo" viewBox="0 0 96 96" width="115" height="115" role="img" aria-label="Logo Elternsprechtag">
+        <defs>
+          <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#2b6cb0"/>
+            <stop offset="1" stop-color="#63b3ed"/>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="115" height="115" rx="24" fill="url(#lg1)"/>
+        <rect x="30" y="11" width="6" height="14" rx="3" fill="#e2e8f0"/>
+        <rect x="60" y="11" width="6" height="14" rx="3" fill="#e2e8f0"/>
+        <rect x="21" y="18" width="54" height="56" rx="9" fill="#ffffff"/>
+        <rect x="21" y="18" width="54" height="16" rx="8" fill="#c53030"/>
+        <rect x="21" y="26" width="54" height="8" fill="#c53030"/>
+        <text x="48" y="29.5" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="9.5" font-weight="700" fill="#ffffff">6C_HAR</text>
+        <text x="48" y="60" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="800" fill="#2d3748">24 Nov</text>
+        <path d="M42 62 h26 a9 9 0 0 1 9 9 v4 a9 9 0 0 1 -9 9 h-16 l-9 8 v-8 h-1 a9 9 0 0 1 -9 -9 v-4 a9 9 0 0 1 9 -9 z" fill="#2f855a"/>
+        <circle cx="50" cy="73" r="2.6" fill="#ffffff"/>
+        <circle cx="58" cy="73" r="2.6" fill="#ffffff"/>
+        <circle cx="66" cy="73" r="2.6" fill="#ffffff"/>
+      </svg>
+    </div>
+    <h1>Elternsprechtag der 6C</h1>
+    <p>Bitte tragen Sie sich für ein Gespräch ein.</p>
+  </header>
+
+  <!-- KONFIGURATION -->
+  <script>
+    // ➜ Hier die URL Ihres Google-Apps-Script-Web-App eintragen (siehe Anleitung unten).
+    // Solange leer: Buchungen werden nur lokal im Browser gespeichert.
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby9NlbbdOgO_KLAM6Sy7WjP9BSqPxsXY6Lq9Pi-Vcd0hRJRpHjqbFD8rKl79omT36_0/exec";
+  </script>
+
+  <div class="card">
+    <form id="bookingForm" novalidate>
+      <label for="actionSelect">Was möchten Sie tun? <span class="req">*</span></label>
+      <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg><select id="actionSelect">
+        <option value="">– bitte wählen –</option>
+        <option value="buchen">Termin buchen</option>
+        <option value="aendern">Termin ändern</option>
+      </select></div>
+
+      <div id="stepSchueler" class="step-hidden">
+        <label for="schueler">Schülervorname (Vorname Ihres Kindes) <span class="req">*</span></label>
+        <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><input type="text" id="schueler" required autocomplete="off" placeholder="nur der Vorname Ihres Kindes"></div>
+      </div>
+
+      <div id="stepOldSlot" style="display:none;">
+        <label for="oldSlot">Ihr bisheriger Termin <span class="req">*</span></label>
+        <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#c53030"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg><select id="oldSlot"><option value="">– bitte wählen –</option></select></div>
+        <p class="note">Wählen Sie den Termin, den Sie ändern möchten. Er wird nach dem Speichern freigegeben.</p>
+      </div>
+
+      <div id="stepEltern" class="step-hidden">
+        <label for="name">Nachname (Eltern/Erziehungsberechtigte) <span class="req">*</span></label>
+        <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><input type="text" id="name" disabled required autocomplete="name"></div>
+      </div>
+
+      <div id="stepPhone" class="step-hidden">
+        <label for="phone">Handynummer <span class="req">*</span></label>
+        <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2f855a"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg><input type="tel" id="phone" disabled required autocomplete="tel" placeholder="z. B. 01721234567" maxlength="15" inputmode="numeric"></div>
+      </div>
+
+      <div id="stepEmail" class="step-hidden">
+        <label for="email">E-Mail <span class="opt">(freiwillig)</span></label>
+        <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg><input type="email" id="email" disabled autocomplete="email"></div>
+      </div>
+
+      <div id="stepMode" class="step-hidden">
+        <label>Teilnahme <span class="req">*</span></label>
+        <div class="radio-row">
+          <label class="radio-card selected">
+            <input type="radio" name="mode" value="Präsenz" checked> Ich komme in die Schule
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="mode" value="Telefonisch"> <svg class="phone-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2f855a" style="vertical-align:-3px; margin-right:2px;"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg> Ich möchte angerufen werden
+          </label>
+        </div>
+      </div>
+
+      <div id="stepSlots" class="step-hidden">
+        <label style="margin-top:18px;">Zeitfenster <span class="req">*</span></label>
+        <div class="slots" id="slots"></div>
+        <div class="legend">
+          <span class="l-free">Frei</span>
+          <span class="l-sel">Ihre Auswahl</span>
+          <span class="l-taken">Bereits vergeben</span>
+        </div>
+      </div>
+
+      <button type="submit" class="submit" id="submitBtn" disabled style="margin-top:20px;">Termin buchen</button>
+      <div class="msg" id="msg"></div>
+    </form>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+  ANLEITUNG GOOGLE SHEETS (ausgeblendet – im Seitenquelltext enthalten)
+
+  1. Neues Google Sheet anlegen (z. B. „Elternsprechtag“).
+  2. Erweiterungen → Apps Script öffnen und diesen Code einfügen:
+
+  const SHEET_NAME = "Buchungen";
+
+  function doPost(e) {
+    const d = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName(SHEET_NAME);
+    if (!sh) {
+      sh = ss.insertSheet(SHEET_NAME);
+      sh.appendRow(["Zeitstempel", "Schülername", "Name Eltern", "E-Mail", "Handy", "Teilnahme", "Zeitfenster"]);
+    }
+    // Doppelbuchung verhindern
+    const taken = sh.getRange("G2:G").getValues().flat();
+    if (taken.includes(d.slot)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ok: false, error: "Zeitfenster bereits vergeben"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (d.action === "aendern") {
+      // Zeile finden: Schülername (Spalte B) UND bisheriger Termin (Spalte G) müssen passen
+      const rows = sh.getDataRange().getValues();
+      let rowIdx = -1;
+      for (let r = 1; r < rows.length; r++) {
+        if (rows[r][1] === d.schueler && rows[r][6] === d.oldSlot) { rowIdx = r + 1; break; }
+      }
+      if (rowIdx === -1) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ok: false, error: "Schülername oder Termin passt nicht!"}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      // Alten Termin überschreiben: Teilnahme (F) und Zeitfenster (G)
+      sh.getRange("F" + rowIdx + ":G" + rowIdx).setValues([[d.mode, d.slot]]);
+      return ContentService
+        .createTextOutput(JSON.stringify({ok: true}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    // Neu buchen
+    sh.appendRow([new Date(), d.schueler, d.name, d.email, d.phone, d.mode, d.slot]);
+    return ContentService
+      .createTextOutput(JSON.stringify({ok: true}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  function doGet() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sh = ss.getSheetByName(SHEET_NAME);
+    if (!sh) return ContentService
+      .createTextOutput(JSON.stringify({slots: [], entries: []}))
+      .setMimeType(ContentService.MimeType.JSON);
+    const rows = sh.getDataRange().getValues();
+    const slots = [];
+    const entries = [];
+    for (let r = 1; r < rows.length; r++) {
+      if (rows[r][6]) {
+      slots.push(rows[r][6]);
+      entries.push({schueler: rows[r][1], name: rows[r][2], phone: rows[r][4], mode: rows[r][5], slot: rows[r][6]});
+    }
+    }
+    return ContentService
+      .createTextOutput(JSON.stringify({slots: slots, entries: entries}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  3. Bereitstellen → Neue Bereitstellung → Typ: Web-App.
+     Ausführen als: Ich · Wer darf zugreifen: Alle.
+  4. Die Web-App-URL oben im HTML im Feld SCRIPT_URL eintragen.
+  5. Seite veröffentlichen (Schulwebsite / Link).
+
+  Hinweis: Ohne SCRIPT_URL läuft die Seite im Demo-Modus (nur lokal im Browser).
+  ══════════════════════════════════════════════════════════════════ -->
+</div>
+
+<script>
+// ---------- Zeitfenster erzeugen ----------
+const START = 10 * 60 + 45;     // 10:45
+const END   = 19 * 60;          // bis 19:00
+const BREAKS = [[12*60+15, 13*60+45], [16*60+15, 16*60+45]];
+
+function fmt(min){ return String(Math.floor(min/60)).padStart(2,"0") + ":" + String(min%60).padStart(2,"0"); }
+// Altes Format "11:00" (Startzeit) -> neues Bereichsformat "11:00-11:15"; Bereiche bleiben unverändert
+function normSlot(s){
+  s = String(s).trim();
+  if(/^\d{2}:\d{2}$/.test(s)){
+    const p = s.split(":").map(Number);
+    return s + "-" + fmt(p[0]*60 + p[1] + 15);
+  }
+  return s;
+}
+
+const slotsBox = document.getElementById("slots");
+const allSlots = []; // alle buchbaren Zeitfenster (für das Dropdown "bisheriger Termin")
+for (let t = START; t < END; t += 15) {
+  const inBreak = BREAKS.some(([b1,b2]) => t >= b1 && t < b2);
+  if (inBreak) continue;
+  const label = fmt(t) + "-" + fmt(t + 15); // z. B. "11:00-11:15" – jedes Fenster 15 Minuten
+  allSlots.push(label);
+  const el = document.createElement("div");
+  el.className = "slot";
+  el.dataset.slot = label;
+  el.textContent = label;
+  slotsBox.appendChild(el);
+}
+
+// ---------- Kaskadeneingabe ----------
+const cascadeInputs = [
+  { input: document.getElementById("schueler"), step: document.getElementById("stepSchueler") },
+  { input: document.getElementById("name"),     step: document.getElementById("stepEltern") },
+  { input: document.getElementById("phone"),    step: document.getElementById("stepPhone") },
+  { input: document.getElementById("email"),    step: document.getElementById("stepEmail") },
+];
+const stepMode   = document.getElementById("stepMode");
+const stepSlots  = document.getElementById("stepSlots");
+const submitBtn  = document.getElementById("submitBtn");
+
+// Feldzustände: erstes freigegebene, leeres Feld blinkt rot; gefüllte Felder grün
+const PHONE_RE = /^0\d{6,14}$/; // z. B. 01721234567 – nur Ziffern, beginnt mit 0
+function refreshFieldStates(){
+  cascadeInputs.forEach(({input}) => {
+    input.classList.remove("fehler", "ok");
+    if (input.disabled) return;
+    const v = input.value.trim();
+    if (v.length === 0) return;
+    if (input.id === "phone") {
+      input.classList.add(PHONE_RE.test(v) ? "ok" : "fehler");
+    } else if (input.id === "email") {
+      input.classList.add(EMAIL_RE.test(v) ? "ok" : "fehler");
+    } else {
+      input.classList.add("ok");
+    }
+  });
+  const current = cascadeInputs.find(({input}) => !input.disabled && input.value.trim().length === 0);
+  if (current) current.input.classList.add("fehler");
+}
+
+// ---------- Ändern-Prüfung: Schülername + bisheriger Termin müssen im Sheet stehen ----------
+let aendernOk = false;
+function verifyAendern(){
+  if (actionSelect.value !== "aendern") { aendernOk = false; return; }
+  const s = document.getElementById("schueler").value.trim();
+  const o = oldSlotSelect.value;
+  if (!o) { aendernOk = false; renderCascade(); return; }
+  if (!SCRIPT_URL) { aendernOk = true; } // Demo-Modus: keine Prüfung möglich
+  else if (!entriesSupported) { aendernOk = true; } // alte Script-Version: Server prüft beim Speichern
+  else {
+    const sl = s.toLowerCase();
+    aendernOk = sheetEntries.some(e =>
+      String(e.schueler).trim().toLowerCase() === sl && normSlot(e.slot) === o);
+    if (!aendernOk) showMsg("Schülername oder Termin passt nicht!", false);
+  }
+  renderCascade();
+}
+
+// ---------- Aktion: buchen / ändern ----------
+const actionSelect = document.getElementById("actionSelect");
+const stepOldSlot  = document.getElementById("stepOldSlot");
+const oldSlotSelect = document.getElementById("oldSlot");
+actionSelect.addEventListener("change", () => {
+  submitBtn.textContent = actionSelect.value === "aendern" ? "Termin ändern" : "Termin buchen";
+  renderCascade(); // zeigt/versteckt "Ihr bisheriger Termin" und blendet Felder um
+});
+
+// Kaskade: Nächstes Feld erscheint erst nach Enter; Leeren sperrt Folgende wieder
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+let unlocked = 0; // 1: +Eltern, 2: +Handy, 3: +E-Mail → Teilnahme/Slots/Button frei
+
+function renderCascade(){
+  const isAendern = actionSelect.value === "aendern";
+  cascadeInputs.forEach(({input, step}, i) => {
+    if (i === 0) {
+      // Schülervorname erst scharf, wenn im Dropdown etwas gewählt wurde
+      if (actionSelect.value === "") {
+        step.classList.add("step-hidden");
+        input.disabled = true;
+      } else {
+        step.classList.remove("step-hidden");
+        input.disabled = false;
+      }
+      return;
+    }
+    if (isAendern) {
+      // Nachname, Handynummer und E-Mail im Ändern-Modus komplett ausblenden
+      step.classList.add("step-hidden", "step-gone");
+      input.disabled = true;
+      input.value = "";
+      input.classList.remove("fehler", "ok");
+    } else if (unlocked >= i) {
+      step.classList.remove("step-hidden", "step-gone");
+      input.disabled = false;
+    } else {
+      step.classList.add("step-hidden");
+      step.classList.remove("step-gone");
+      input.disabled = true;
+      input.value = "";
+      input.classList.remove("fehler", "ok");
+    }
+  });
+  if (isAendern) {
+    // Nach Enter im Schülervorname: bisheriger Termin wählbar …
+    const open = unlocked >= 1;
+    stepOldSlot.style.display = open ? "block" : "none";
+    // … Teilnahme/Slots erst, wenn Schülername + bisheriger Termin zum Sheet-Eintrag passen
+    const openRest = open && aendernOk;
+    stepMode.classList.toggle("step-hidden", !openRest);
+    stepSlots.classList.toggle("step-hidden", !openRest);
+    submitBtn.disabled = !openRest;
+  } else {
+    stepOldSlot.style.display = "none";
+    if (unlocked >= 3) {
+      stepMode.classList.remove("step-hidden");
+      stepSlots.classList.remove("step-hidden");
+      submitBtn.disabled = false;
+    } else {
+      stepMode.classList.add("step-hidden");
+      stepSlots.classList.add("step-hidden");
+      submitBtn.disabled = true;
+    }
+  }
+  refreshFieldStates();
+}
+
+// Tippen: nur Ziffern-Filter im Handyfeld + Sperren, wenn ein Feld geleert wird
+cascadeInputs.forEach(({input}) => input.addEventListener("input", () => {
+  if (input.id === "phone") input.value = input.value.replace(/[^0-9]/g, ""); // nur Ziffern erlaubt
+  if (input.id === "schueler") input.value = input.value.replace(/\s/g, ""); // nur Vorname, kein Leerzeichen
+  if (input.id === "schueler" && actionSelect.value === "aendern") verifyAendern();
+  const idx = cascadeInputs.findIndex(c => c.input === input);
+  if (input.value.trim().length === 0 && unlocked > idx) unlocked = idx;
+  renderCascade();
+}));
+
+// Enter im Feld: erst dann wird das nächste Feld freigegeben
+cascadeInputs.forEach(({input}, i) => {
+  input.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault(); // nie direkt absenden
+    const v = input.value.trim();
+    if (i < 3 && v.length > 0) {
+      if (input.id === "phone" && !PHONE_RE.test(v)) {
+        input.classList.add("fehler");
+        showMsg("Bitte Handynummer im Muster 01721234567 eingeben – nur Ziffern, beginnend mit 0.", false);
+        return;
+      }
+      unlocked = Math.max(unlocked, i + 1);
+      renderCascade();
+      if (i === 0 && actionSelect.value === "aendern") { oldSlotSelect.focus(); return; }
+      const nxt = cascadeInputs[i + 1];
+      if (nxt && !nxt.input.disabled) nxt.input.focus();
+    } else if (i === 3) { // E-Mail (freiwillig)
+      if (v.length > 0 && !EMAIL_RE.test(v)) {
+        input.classList.add("fehler");
+        showMsg("Bitte gültige E-Mail eingeben oder Feld leer lassen.", false);
+        return;
+      }
+      const firstFree = document.querySelector(".slot:not(.taken)");
+      if (firstFree) firstFree.scrollIntoView({behavior: "smooth", block: "center"});
+    }
+  });
+});
+
+// Enter außerhalb der Felder: absenden, wenn alles bereit
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" || e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (actionSelect.value === "") return;
+  const open = actionSelect.value === "aendern" ? (unlocked >= 1 && aendernOk) : unlocked >= 3;
+  if (!open) return;
+  if (chosenSlot && !submitBtn.disabled) { e.preventDefault(); form.requestSubmit(); }
+});
+
+oldSlotSelect.addEventListener("change", verifyAendern);
+
+// Enter im "bisheriger Termin"-Dropdown: zur Zeitauswahl springen
+oldSlotSelect.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  if (!oldSlotSelect.value) { showMsg("Bitte wählen Sie Ihren bisherigen Termin aus.", false); return; }
+  const firstFree = document.querySelector(".slot:not(.taken)");
+  if (firstFree) firstFree.scrollIntoView({behavior: "smooth", block: "center"});
+});
+
+// Beim Laden: Startzustand
+renderCascade();
+
+// ---------- Admin: PDF-Ausdruck (Passwort 1971) ----------
+const pdfBtn = document.getElementById("pdfBtn");
+const pdfPw  = document.getElementById("pdfPw");
+pdfBtn.addEventListener("click", () => {
+  if (pdfPw.style.display === "block") { pdfPw.style.display = "none"; pdfPw.value = ""; }
+  else { pdfPw.style.display = "block"; pdfPw.focus(); }
+});
+pdfPw.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  if (pdfPw.value === "1971") {
+    pdfPw.value = ""; pdfPw.style.display = "none";
+    createPdf();
+  } else {
+    pdfPw.value = ""; pdfPw.focus();
+    showMsg("Sie haben keine Berechtigung", false); // blinkt, 5 s sichtbar
+  }
+});
+
+async function fetchEntries(){
+  if (!SCRIPT_URL) return [];
+  const r = await fetch(SCRIPT_URL);
+  const d = await r.json();
+  return d.entries || [];
+}
+
+function printFallback(rows){
+  const w = window.open("", "_blank");
+  const trs = rows.map(r =>
+    `<tr><td>${r.slot||""}</td><td>${r.schueler||""}</td><td>${r.name||""}</td><td>${r.phone||""}</td><td>${r.mode||""}</td></tr>`).join("");
+  w.document.write(`<html><head><title>Elternsprechtag 6C</title></head><body style="font-family:Arial">
+    <h2>Elternsprechtag der 6C – 24.11.2026</h2>
+    <table border="1" cellpadding="6" cellspacing="0">
+    <tr><th>Zeitfenster</th><th>Schüler</th><th>Eltern</th><th>Handy</th><th>Teilnahme</th></tr>${trs}</table>
+    <script>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+
+async function createPdf(){
+  let rows;
+  try { rows = await fetchEntries(); } catch { rows = sheetEntries; }
+  rows = rows.slice().sort((a,b) => String(a.slot).localeCompare(String(b.slot)));
+  try {
+    const { jsPDF } = window.jspdf;
+    const GState = window.jspdf.GState; // für Transparenz (Glas-Effekt)
+    const doc = new jsPDF();
+    const C = { bg:[247,250,253], card:[255,255,255], head:[43,108,176], headDark:[36,90,148],
+                line:[203,213,224], text:[26,32,44], sub:[113,128,150],
+                green:[47,133,90], blue:[43,108,176], lilac:[128,90,213] };
+
+    function pageBg(){ // heller iOS-Hintergrund
+      doc.setFillColor(...C.bg); doc.rect(0, 0, 210, 297, "F");
+    }
+    function glassRect(x, y, w, h, op){ // milchige Karte
+      try {
+        doc.saveGraphicsState();
+        doc.setGState(new GState({opacity: op}));
+        doc.setFillColor(...C.card);
+        doc.roundedRect(x, y, w, h, 2.2, 2.2, "F");
+        doc.restoreGraphicsState();
+      } catch(e) {
+        doc.setFillColor(255,255,255); doc.roundedRect(x, y, w, h, 2.2, 2.2, "F");
+      }
+    }
+    function header(){
+      pageBg();
+      // Titel
+      doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(...C.headDark);
+      doc.text("Elternsprechtag der 6C – 24.11.2026", 14, 17);
+      doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...C.sub);
+      doc.text(`Stand: ${new Date().toLocaleString("de-DE")}   |   ${rows.length} gebuchte Termine`, 14, 23);
+      // Glas-Karte für die Tabelle
+      glassRect(12, 28, 186, 240, 0.85);
+      // Tabellenkopf als blaue Pille
+      doc.setFillColor(...C.head);
+      doc.roundedRect(16, 33, 178, 8, 2, 2, "F");
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(255,255,255);
+      doc.text("Zeitfenster", 20, 38.5); doc.text("Schüler", 55, 38.5);
+      doc.text("Eltern", 92, 38.5); doc.text("Handy", 140, 38.5); doc.text("Teilnahme", 172, 38.5);
+      // Fußzeile
+      doc.setFont("helvetica","italic"); doc.setFontSize(7.5); doc.setTextColor(...C.sub);
+      doc.text("© EST26 HARBI – erstellt mit der Elternsprechtag-Buchungsseite", 14, 290);
+      return 46;
+    }
+
+    let y = header();
+    if (rows.length === 0) {
+      doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...C.sub);
+      doc.text("Noch keine Termine gebucht.", 20, y + 4);
+    }
+    rows.forEach((r, i) => {
+      if (y > 258) { doc.addPage(); y = header(); }
+      if (i % 2 === 0) { // dezenter Zeilenwechsel wie in iOS-Listen
+        try {
+          doc.saveGraphicsState(); doc.setGState(new GState({opacity:0.55}));
+          doc.setFillColor(234, 241, 250);
+          doc.roundedRect(16, y - 4.6, 178, 7, 1.5, 1.5, "F");
+          doc.restoreGraphicsState();
+        } catch(e) {}
+      }
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(...C.blue);
+      doc.text(String(r.slot || ""), 20, y);
+      doc.setFont("helvetica","normal"); doc.setTextColor(...C.text);
+      doc.text(String(r.schueler || ""), 55, y);
+      doc.text(String(r.name || ""), 92, y);
+      doc.setTextColor(...C.sub);
+      doc.text(String(r.phone || ""), 140, y);
+      // Teilnahme farblich: Präsenz = grün, Telefonisch = lila
+      const m = String(r.mode || "");
+      doc.setTextColor(...(m === "Präsenz" ? C.green : C.lilac));
+      doc.text(m, 172, y);
+      doc.setDrawColor(...C.line); doc.setLineWidth(0.1);
+      doc.line(16, y + 2.4, 194, y + 2.4);
+      y += 8;
+    });
+    doc.save("Elternsprechtag-6C.pdf");
+  } catch (err) {
+    printFallback(rows); // Fallback: Druckansicht
+  }
+}
+
+// ---------- Zeitfenster-Auswahl ----------
+let chosenSlot = null;
+slotsBox.addEventListener("click", e => {
+  const el = e.target.closest(".slot");
+  if (!el || el.classList.contains("taken")) return;
+  if (stepSlots.classList.contains("step-hidden")) return;
+  document.querySelectorAll(".slot.selected").forEach(s => s.classList.remove("selected"));
+  el.classList.add("selected");
+  chosenSlot = el.dataset.slot;
+});
+
+// Radio-Karten Optik
+document.querySelectorAll(".radio-card").forEach(card => {
+  card.addEventListener("click", () => {
+    document.querySelectorAll(".radio-card").forEach(c => c.classList.remove("selected"));
+    card.classList.add("selected");
+  });
+});
+
+// ---------- Vergbebene Slots laden (Google Sheet + lokaler Cache) ----------
+const takenSlots = new Set();
+function updateOldSlotOptions(){
+  const cur = oldSlotSelect.value;
+  oldSlotSelect.innerHTML = '<option value="">– bitte wählen –</option>';
+  allSlots.forEach(s => {
+    const o = document.createElement("option");
+    o.value = s; o.textContent = s + " Uhr";
+    oldSlotSelect.appendChild(o);
+  });
+  oldSlotSelect.value = cur;
+}
+function markTaken(list){
+  list.forEach(slot => {
+    takenSlots.add(slot);
+    const el = slotsBox.querySelector(`[data-slot="${slot}"]`);
+    if (el) el.classList.add("taken");
+  });
+  updateOldSlotOptions();
+}
+function localTaken(){
+  try { return JSON.parse(localStorage.getItem("esb_taken") || "[]"); } catch { return []; }
+}
+markTaken(localTaken());
+
+let sheetEntries = []; // {schueler, slot} aus dem Google Sheet
+let entriesSupported = false; // true = Script liefert Einträge (neue Code.gs-Version)
+if (SCRIPT_URL) {
+  fetch(SCRIPT_URL)
+    .then(r => r.json())
+    .then(data => {
+      if (data.slots) markTaken(data.slots);
+      if (data.entries) { sheetEntries = data.entries; entriesSupported = true; }
+      verifyAendern(); // ggf. Ändern-Prüfung erneut anstoßen
+    })
+    .catch(() => {}); // Offline: lokaler Cache reicht
+}
+
+// ---------- Absenden ----------
+const form = document.getElementById("bookingForm");
+const msg  = document.getElementById("msg");
+
+let msgTimer = null;
+function showMsg(text, ok){
+  msg.textContent = text;
+  msg.className = "msg " + (ok ? "ok" : "err");
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => { msg.className = "msg"; }, 5000); // nach 5 s ausblenden
+}
+function bookLocal(data){
+  const taken = localTaken();
+  taken.push(data.slot);
+  localStorage.setItem("esb_taken", JSON.stringify(taken));
+}
+
+form.addEventListener("submit", async e => {
+  e.preventDefault();
+  const schueler = document.getElementById("schueler").value.trim();
+  const name  = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const mode  = document.querySelector('input[name="mode"]:checked').value;
+
+  const action = actionSelect.value;
+  if (action === "") return showMsg("Bitte wählen Sie zuerst im Dropdown, ob Sie einen Termin buchen oder ändern möchten.", false);
+  if (action === "aendern") {
+    if (!schueler) return showMsg("Bitte geben Sie den Vornamen Ihres Kindes ein.", false);
+  } else {
+    if (!schueler || !name || !phone) return showMsg("Bitte füllen Sie alle Pflichtfelder aus.", false);
+    if (!PHONE_RE.test(phone)) return showMsg("Bitte Handynummer im Muster 01721234567 eingeben – nur Ziffern, beginnend mit 0.", false);
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return showMsg("Bitte geben Sie eine gültige E-Mail-Adresse ein oder lassen Sie das Feld leer.", false);
+  }
+  if (!chosenSlot) return showMsg("Bitte wählen Sie ein Zeitfenster aus.", false);
+  let oldSlot = "";
+  if (action === "aendern") {
+    oldSlot = oldSlotSelect.value;
+    if (!oldSlot) return showMsg("Bitte wählen Sie Ihren bisherigen Termin aus.", false);
+    if (oldSlot === chosenSlot) return showMsg("Der neue Termin ist identisch mit dem bisherigen. Bitte wählen Sie ein anderes Zeitfenster.", false);
+  }
+
+  const data = { schueler, name, email, phone, mode, slot: chosenSlot, action, oldSlot };
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Wird gespeichert …";
+
+  try {
+    if (SCRIPT_URL) {
+      const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" }, // vermeidet CORS-Preflight bei Apps Script
+        body: JSON.stringify(data)
+      });
+      const out = await res.json();
+      if (!out.ok) throw new Error(out.error || "Fehler beim Speichern.");
+    } else {
+      await new Promise(r => setTimeout(r, 500)); // Demo-Modus
+    }
+    bookLocal(data);
+    if (action === "aendern") {
+      takenSlots.delete(oldSlot);
+      const elOld = slotsBox.querySelector(`[data-slot="${oldSlot}"]`);
+      if (elOld) elOld.classList.remove("taken");
+      localStorage.setItem("esb_taken", JSON.stringify(localTaken().filter(s => s !== oldSlot)));
+      updateOldSlotOptions();
+    }
+    markTaken([data.slot]);
+    showMsg(action === "aendern"
+      ? `✅ Ihr Termin wurde geändert: ${oldSlot} → ${data.slot}.`
+      : `✅ Ihr Termin ist vorgemerkt: ${data.slot} (${mode}).`, true);
+
+    // Formular zurücksetzen & Kaskade wieder sperren
+    form.reset();
+    submitBtn.textContent = "Termin buchen";
+    chosenSlot = null;
+    unlocked = 0;
+    document.querySelectorAll(".slot.selected").forEach(s => s.classList.remove("selected"));
+    document.querySelectorAll(".radio-card").forEach((c, i) => c.classList.toggle("selected", i === 0));
+    renderCascade(); // Schülername blinkt wieder rot
+  } catch (err) {
+    showMsg("❌ " + err.message + " Bitte wählen Sie ein anderes Zeitfenster.", false);
+  } finally {
+    submitBtn.textContent = "Termin buchen";
+    renderCascade(); // setzt den Button-Zustand passend zur Kaskade
+  }
+});
+</script>
+</body>
+</html>
