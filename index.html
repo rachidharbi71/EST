@@ -218,7 +218,6 @@
       <div id="stepSchueler" class="step-hidden">
         <label for="schueler">Schülervorname (Vorname Ihres Kindes) <span class="req">*</span></label>
         <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><input type="text" id="schueler" required autocomplete="off" placeholder="nur der Vorname Ihres Kindes"></div>
-        <button type="button" class="weiter-btn" data-i="0">Weiter</button>
       </div>
 
       <div id="stepOldSlot" style="display:none;">
@@ -230,7 +229,6 @@
       <div id="stepEltern" class="step-hidden">
         <label for="name">Nachname (Eltern/Erziehungsberechtigte) <span class="req">*</span></label>
         <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><input type="text" id="name" disabled required autocomplete="name"></div>
-        <button type="button" class="weiter-btn" data-i="1">Weiter</button>
       </div>
 
       <div id="stepPhone" class="step-hidden">
@@ -242,7 +240,6 @@
       <div id="stepEmail" class="step-hidden">
         <label for="email">E-Mail <span class="opt">(freiwillig)</span></label>
         <div class="field-wrap"><svg class="f-icon" viewBox="0 0 24 24" width="20" height="20" fill="#2b6cb0"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg><input type="email" id="email" disabled autocomplete="email"></div>
-        <button type="button" class="weiter-btn" data-i="3">Weiter</button>
       </div>
 
       <div id="stepMode" class="step-hidden">
@@ -509,17 +506,11 @@ cascadeInputs.forEach(({input}) => input.addEventListener("input", () => {
 }));
 
 // Weiter-Schaltflächen (erscheinen nur auf Touch-Geräten, wo es keine Enter-Taste gibt)
-const weiterBtns = [...document.querySelectorAll(".weiter-btn")];
+const phoneWeiter = document.querySelector(".weiter-btn"); // nur bei der Handynummer (Ziffernblock ohne Enter)
 function updateWeiter(){
-  cascadeInputs.forEach(({input}, i) => {
-    const b = weiterBtns[i];
-    if (!b) return;
-    if (input.disabled) { b.disabled = true; return; }
-    const v = input.value.trim();
-    if (input.id === "phone") b.disabled = !PHONE_RE.test(v);
-    else if (input.id === "email") b.disabled = false; // freiwillig
-    else b.disabled = v.length === 0;
-  });
+  if (!phoneWeiter) return;
+  const phone = cascadeInputs[2].input;
+  phoneWeiter.disabled = phone.disabled || !PHONE_RE.test(phone.value.trim());
 }
 
 // Ein Feld weiter (Enter-Taste oder Weiter-Button)
@@ -554,7 +545,7 @@ cascadeInputs.forEach(({input}, i) => {
     advanceFrom(i);
   });
 });
-weiterBtns.forEach(b => b.addEventListener("click", () => advanceFrom(Number(b.dataset.i))));
+phoneWeiter.addEventListener("click", () => advanceFrom(2));
 
 // Enter außerhalb der Felder: absenden, wenn alles bereit
 document.addEventListener("keydown", e => {
