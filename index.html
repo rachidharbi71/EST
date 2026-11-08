@@ -350,10 +350,8 @@
 </div>
 
 <script>
-// ---------- Zeitfenster erzeugen ----------
-const START = 10 * 60 + 45;     // 10:45
-const END   = 19 * 60;          // bis 19:00
-const BREAKS = [[12*60+15, 13*60+45], [16*60+15, 16*60+45]];
+// ---------- Zeitfenster (fest definierte Liste, Dauer variabel: 10/15/20/25 Min) ----------
+const SLOT_LIST = ["10:40-10:50", "10:50-11:00", "11:00-11:15", "11:15-11:30", "11:30-11:45", "11:45-12:00", "12:00-12:15", "13:50-14:00", "14:00-14:15", "14:15-14:30", "14:30-14:45", "14:45-15:00", "15:00-15:15", "15:15-15:30", "15:30-15:45", "15:45-16:00", "16:00-16:15", "16:15-16:30", "16:30-16:40", "16:40-17:00", "17:00-17:10", "17:10-17:20", "17:20-17:30", "17:30-17:40", "17:40-17:50", "17:50-18:00", "18:00-18:10", "18:10-18:20", "18:20-18:45", "18:45-19:00"];
 
 function fmt(min){ return String(Math.floor(min/60)).padStart(2,"0") + ":" + String(min%60).padStart(2,"0"); }
 // Altes Format "11:00" (Startzeit) -> neues Bereichsformat "11:00-11:15"; Bereiche bleiben unverändert
@@ -367,18 +365,14 @@ function normSlot(s){
 }
 
 const slotsBox = document.getElementById("slots");
-const allSlots = []; // alle buchbaren Zeitfenster (für das Dropdown "bisheriger Termin")
-for (let t = START; t < END; t += 15) {
-  const inBreak = BREAKS.some(([b1,b2]) => t >= b1 && t < b2);
-  if (inBreak) continue;
-  const label = fmt(t) + "-" + fmt(t + 15); // z. B. "11:00-11:15" – jedes Fenster 15 Minuten
-  allSlots.push(label);
+const allSlots = SLOT_LIST; // alle buchbaren Zeitfenster (auch für das Dropdown "bisheriger Termin")
+SLOT_LIST.forEach(label => {
   const el = document.createElement("div");
   el.className = "slot";
   el.dataset.slot = label;
   el.textContent = label;
   slotsBox.appendChild(el);
-}
+});
 
 // ---------- Kaskadeneingabe ----------
 const cascadeInputs = [
