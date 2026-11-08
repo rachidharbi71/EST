@@ -610,8 +610,7 @@ pdfPw.addEventListener("keydown", e => {
 
 async function fetchEntries(){
   if (!SCRIPT_URL) return [];
-  const r = await fetch(SCRIPT_URL);
-  const d = await r.json();
+  const d = await sheetFetch();
   return d.entries || [];
 }
 
@@ -756,9 +755,12 @@ markTaken(localTaken());
 
 let sheetEntries = []; // {schueler, slot} aus dem Google Sheet
 let entriesSupported = false; // true = Script liefert Einträge (neue Code.gs-Version)
+function sheetFetch(){ // Zeitstempel verhindert Caching (Chrome!)
+  return fetch(SCRIPT_URL + "?t=" + Date.now()).then(r => r.json());
+}
 if (SCRIPT_URL) {
-  fetch(SCRIPT_URL)
-    .then(r => r.json())
+  sheetFetch()
+    .then(r => r)
     .then(data => {
       if (data.slots) markTaken(data.slots);
       if (data.entries) { sheetEntries = data.entries; entriesSupported = true; }
