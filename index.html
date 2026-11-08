@@ -751,7 +751,8 @@ function markTaken(list){
 function localTaken(){
   try { return JSON.parse(localStorage.getItem("esb_taken") || "[]"); } catch { return []; }
 }
-markTaken(localTaken());
+// Lokale Blöcke nur im Demo-Modus (ohne Sheet) – sonst gilt ausschließlich das Sheet
+if (!SCRIPT_URL) markTaken(localTaken());
 
 let sheetEntries = []; // {schueler, slot} aus dem Google Sheet
 let entriesSupported = false; // true = Script liefert Einträge (neue Code.gs-Version)
@@ -781,6 +782,7 @@ function showMsg(text, ok){
   msgTimer = setTimeout(() => { msg.className = "msg"; }, 5000); // nach 5 s ausblenden
 }
 function bookLocal(data){
+  if (SCRIPT_URL) return; // mit Sheet ist nur das Sheet die Wahrheit
   const taken = localTaken();
   taken.push(data.slot);
   localStorage.setItem("esb_taken", JSON.stringify(taken));
@@ -833,7 +835,7 @@ form.addEventListener("submit", async e => {
       takenSlots.delete(oldSlot);
       const elOld = slotsBox.querySelector(`[data-slot="${oldSlot}"]`);
       if (elOld) elOld.classList.remove("taken");
-      localStorage.setItem("esb_taken", JSON.stringify(localTaken().filter(s => s !== oldSlot)));
+      if (!SCRIPT_URL) localStorage.setItem("esb_taken", JSON.stringify(localTaken().filter(s => s !== oldSlot)));
       updateOldSlotOptions();
     }
     markTaken([data.slot]);
